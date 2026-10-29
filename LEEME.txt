@@ -1,0 +1,11 @@
+METEO ARDOI - Publicación en Netlify
+1. Sube esta carpeta completa a Netlify (arrastrar en "Deploys" o vía GitHub).
+   IMPORTANTE: con "arrastrar y soltar" las Functions solo funcionan si usas Netlify CLI o GitHub.
+   Recomendado: subir la carpeta a un repositorio de GitHub y conectarlo a Netlify.
+2. Site configuration > Environment variables:
+     WU_API_KEY    = tu API key de Weather Underground
+     WU_STATION_ID = el ID de tu estación (p.ej. IZIZUR12)
+3. Redeploy. La key ya no aparece en el navegador.
+4. Revisa privacidad.html y aviso-legal.html (pon tu nombre y un correo).
+5. Publicidad: sustituye los bloques id="ad1"/"ad2" por el código de AdSense.
+Prueba en local: en index.html pon USE_PROXY:false y rellena DIRECT.

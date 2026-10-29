@@ -1,0 +1,24 @@
+{
+  "name": "Meteo Ardoi · El tiempo en Zizur Mayor",
+  "short_name": "Meteo Ardoi",
+  "description": "Datos en directo de la estación meteorológica de Ardoi (Zizur Mayor).",
+  "lang": "es",
+  "id": "/",
+  "start_url": "/?app=1",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f1724",
+  "theme_color": "#0f1724",
+  "categories": ["weather"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Previsión", "short_name": "Previsión", "url": "/?app=1#prevision", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Lluvia y riego", "short_name": "Lluvia", "url": "/?app=1#lluvia", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Récords", "short_name": "Récords", "url": "/?app=1#records", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

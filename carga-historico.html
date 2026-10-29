@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><title>Carga del histórico · Meteo Ardoi</title>
+<style>
+body{font-family:system-ui,sans-serif;max-width:680px;margin:auto;padding:1.5rem 1rem;background:#0f1724;color:#e8eef9;line-height:1.45}
+label{display:block;margin:.8rem 0 .2rem}
+input[type=password],input[type=date]{width:100%;padding:.55rem;border-radius:8px;border:1px solid #2a3a5c;background:#17223a;color:inherit;font:inherit}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:.8rem}
+.chk{display:flex;gap:.5rem;align-items:center;margin-top:.9rem}
+button{margin:1rem .4rem 0 0;padding:.6rem 1.1rem;border:0;border-radius:8px;background:#38bdf8;color:#04121f;font-weight:700;cursor:pointer;font:inherit;font-weight:700}
+button.sec{background:#1d2b48;color:#e8eef9;border:1px solid #2a3a5c}
+button:disabled{opacity:.5;cursor:default}
+button:focus-visible,input:focus-visible{outline:2px solid #38bdf8;outline-offset:2px}
+#bar{height:12px;background:#17223a;border-radius:6px;margin:1rem 0;overflow:hidden}#bar div{height:100%;width:0;background:#34d399;transition:width .4s}
+#log,#res{background:#17223a;border-radius:8px;padding:.8rem;font:13px/1.45 monospace;max-height:340px;overflow:auto;white-space:pre-wrap}
+h3{margin:1.4rem 0 .5rem}.note{font-size:.85rem;color:#93a3c0}
+table{width:100%;border-collapse:collapse}td,th{padding:.3rem .4rem;border-bottom:1px solid #2a3a5c;text-align:left}
+</style></head><body>
+<h1>Carga del histórico</h1>
+<p>Descarga los días pasados de la estación y los guarda en Netlify. Deja esta pestaña abierta; si se corta, vuelve a pulsar y continuará donde lo dejó.</p>
+
+<label for="k">Clave de administración (ADMIN_KEY)</label><input id="k" type="password" autocomplete="off">
+<div class="row">
+  <div><label for="s">Desde</label><input id="s" type="date"></div>
+  <div><label for="e">Hasta</label><input id="e" type="date"></div>
+</div>
+<label class="chk"><input id="r" type="checkbox" checked> Reintentar los días guardados como «sin datos»</label>
+
+<button id="go" type="button">Empezar / continuar</button>
+<button id="stop" type="button" class="sec" disabled>Parar</button>
+<button id="sum" type="button" class="sec">Ver qué hay guardado</button>
+
+<div id="bar"><div></div></div><div id="st" aria-live="polite">—</div>
+
+<h3>Resumen guardado</h3><div id="res">Pulsa «Ver qué hay guardado».</div>
+
+<h3>Diagnóstico: probar un día</h3>
+<div class="row"><div><label for="td">Día</label><input id="td" type="date"></div>
+  <div style="align-self:end"><button id="test" type="button" class="sec">Probar en Weather Underground</button></div></div>
+<p class="note">Si un día de 2025 da <b>204</b> o una lista de observaciones vacía, Weather Underground no tiene datos de tu estación para ese día (estación sin conexión, ID distinto, etc.).</p>
+
+<h3>Registro</h3><div id="log"></div>
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const log = t => { $("log").textContent = new Date().toLocaleTimeString() + "  " + t + "\n" + $("log").textContent; };
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const iso = d => d.toLocaleDateString("sv-SE");
+  const y = new Date(); y.setDate(y.getDate() - 1);
+  $("s").value = "2025-01-01"; $("e").value = iso(y); $("td").value = "2025-06-15";
+  let stop = false;
+
+  // Llama a la función y devuelve {ok, status, j}; tolera respuestas no JSON (timeouts 502/504)
+  async function call(params) {
+    const key = $("k").value.trim();
+    if (!key) throw new Error("Escribe la clave de administración");
+    const r = await fetch("/.netlify/functions/carga-historico?" + new URLSearchParams(Object.assign({ key }, params)), { cache: "no-store" });
+    const txt = await r.text(); let j = null;
+    try { j = JSON.parse(txt); } catch (_) {}
+    return { ok: r.ok && !!j, status: r.status, j, txt };
+  }
+
+  $("go").addEventListener("click", async () => {
+    const start = $("s").value, end = $("e").value;
+    if (!start || !end || start > end) { $("st").textContent = "Revisa las fechas."; return; }
+    stop = false; $("go").disabled = true; $("stop").disabled = false;
+    const run = Date.now(); let initial = null, fails = 0;
+    while (!stop) {
+      let res;
+      try { res = await call({ start, end, retry: $("r").checked ? "1" : "0", run }); }
+      catch (e) { log("Error: " + e.message); if (/clave/i.test(e.message)) break; res = null; }
+      if (!res || !res.ok) {
+        if (res && res.status === 401) { log("❌ " + (res.j && res.j.error)); break; }
+        fails++;
+        log(res ? `⚠️ Respuesta ${res.status}${res.j && res.j.error ? ": " + res.j.error : " (posible corte por tiempo de Netlify)"}` : "⚠️ Error de red");
+        if (fails >= 6) { log("❌ Demasiados fallos seguidos. Revisa el log de la función en Netlify."); break; }
+        await wait(20000); continue;
+      }
+      fails = 0;
+      const j = res.j;
+      if (initial === null) initial = j.remaining + j.done;
+      const pct = initial ? Math.round((initial - j.remaining) / initial * 100) : 100;
+      $("bar").firstElementChild.style.width = pct + "%";
+      $("st").textContent = `${pct} % · faltan ${j.remaining} días · guardados ${j.withData} días con datos`;
+      (j.detalle || []).forEach(l => log(l));
+      if (j.error) log("⚠️ " + j.error);
+      if (j.remaining <= 0) { log("✅ Rango completo" + (j.fallidos && j.fallidos.length ? " · días que siguen fallando: " + j.fallidos.join(", ") : "")); $("st").textContent = "✅ Terminado: " + j.withData + " días con datos en total."; break; }
+      if (j.limit) { log("Límite de la API alcanzado, espero 70 s…"); await wait(70000); }
+      else await wait(j.error ? 20000 : 15000);   // ~8 días cada 15 s → por debajo de 30 consultas/min
+    }
+    if (stop) log("⏸ Parado. Pulsa «Empezar / continuar» para seguir.");
+    $("go").disabled = false; $("stop").disabled = true;
+    $("sum").click();
+  });
+  $("stop").addEventListener("click", () => { stop = true; $("stop").disabled = true; });
+
+  $("sum").addEventListener("click", async () => {
+    try {
+      const r = await call({ action: "status" });
+      if (!r.ok) { $("res").textContent = "Error " + r.status + ": " + (r.j ? r.j.error : r.txt.slice(0, 200)); return; }
+      const j = r.j, ys = Object.keys(j.years).sort();
+      $("res").innerHTML = ys.length ? "<table><tr><th>Año</th><th>Con datos</th><th>Sin datos</th><th>Con error</th></tr>" +
+        ys.map(y => `<tr><td>${y}</td><td>${j.years[y].conDatos}</td><td>${j.years[y].vacios}</td><td>${j.years[y].errores || 0}</td></tr>`).join("") +
+        `</table>\nPrimer día con datos: ${j.primerDiaConDatos || "—"} · Último: ${j.ultimoDiaConDatos || "—"}` : "Todavía no hay nada guardado.";
+    } catch (e) { $("res").textContent = e.message; }
+  });
+
+  $("test").addEventListener("click", async () => {
+    const d = $("td").value; if (!d) return;
+    try {
+      const r = await call({ action: "test", date: d });
+      if (!r.j) { log("Diagnóstico " + d + ": respuesta " + r.status); return; }
+      const j = r.j;
+      log(j.error ? `Diagnóstico ${d}: ${j.error}` :
+        `Diagnóstico ${d}: WU respondió ${j.wuStatus} (${j.bytes} bytes)\n   ${j.respuesta || "(vacío)"}\n   Guardado ahora: ${JSON.stringify(j.guardado)}`);
+    } catch (e) { log(e.message); }
+  });
+})();
+</script>
+</body></html>
