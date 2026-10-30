@@ -2,19 +2,21 @@
 <html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow"><title>Carga del histórico · Meteo Ardoi</title>
 <style>
-body{font-family:system-ui,sans-serif;max-width:680px;margin:auto;padding:1.5rem 1rem;background:#0f1724;color:#e8eef9;line-height:1.45}
+body{font-family:system-ui,sans-serif;max-width:720px;margin:auto;padding:1.5rem 1rem;background:#0f1724;color:#e8eef9;line-height:1.45}
 label{display:block;margin:.8rem 0 .2rem}
 input[type=password],input[type=date]{width:100%;padding:.55rem;border-radius:8px;border:1px solid #2a3a5c;background:#17223a;color:inherit;font:inherit}
 .row{display:grid;grid-template-columns:1fr 1fr;gap:.8rem}
 .chk{display:flex;gap:.5rem;align-items:center;margin-top:.9rem}
-button{margin:1rem .4rem 0 0;padding:.6rem 1.1rem;border:0;border-radius:8px;background:#38bdf8;color:#04121f;font-weight:700;cursor:pointer;font:inherit;font-weight:700}
+button{margin:1rem .4rem 0 0;padding:.6rem 1.1rem;border:0;border-radius:8px;background:#38bdf8;color:#04121f;cursor:pointer;font:inherit;font-weight:700}
 button.sec{background:#1d2b48;color:#e8eef9;border:1px solid #2a3a5c}
+button.warn{background:#f59e0b}
 button:disabled{opacity:.5;cursor:default}
 button:focus-visible,input:focus-visible{outline:2px solid #38bdf8;outline-offset:2px}
 #bar{height:12px;background:#17223a;border-radius:6px;margin:1rem 0;overflow:hidden}#bar div{height:100%;width:0;background:#34d399;transition:width .4s}
 #log,#res{background:#17223a;border-radius:8px;padding:.8rem;font:13px/1.45 monospace;max-height:340px;overflow:auto;white-space:pre-wrap}
 h3{margin:1.4rem 0 .5rem}.note{font-size:.85rem;color:#93a3c0}
 table{width:100%;border-collapse:collapse}td,th{padding:.3rem .4rem;border-bottom:1px solid #2a3a5c;text-align:left}
+.err{color:#fca5a5}
 </style></head><body>
 <h1>Carga del histórico</h1>
 <p>Descarga los días pasados de la estación y los guarda en Netlify. Deja esta pestaña abierta; si se corta, vuelve a pulsar y continuará donde lo dejó.</p>
@@ -24,9 +26,10 @@ table{width:100%;border-collapse:collapse}td,th{padding:.3rem .4rem;border-botto
   <div><label for="s">Desde</label><input id="s" type="date"></div>
   <div><label for="e">Hasta</label><input id="e" type="date"></div>
 </div>
-<label class="chk"><input id="r" type="checkbox" checked> Reintentar los días guardados como «sin datos»</label>
+<label class="chk"><input id="r" type="checkbox"> Reintentar también los días guardados como «sin datos»</label>
 
 <button id="go" type="button">Empezar / continuar</button>
+<button id="fix" type="button" class="warn">Reintentar días con error</button>
 <button id="stop" type="button" class="sec" disabled>Parar</button>
 <button id="sum" type="button" class="sec">Ver qué hay guardado</button>
 
@@ -37,7 +40,7 @@ table{width:100%;border-collapse:collapse}td,th{padding:.3rem .4rem;border-botto
 <h3>Diagnóstico: probar un día</h3>
 <div class="row"><div><label for="td">Día</label><input id="td" type="date"></div>
   <div style="align-self:end"><button id="test" type="button" class="sec">Probar en Weather Underground</button></div></div>
-<p class="note">Si un día de 2025 da <b>204</b> o una lista de observaciones vacía, Weather Underground no tiene datos de tu estación para ese día (estación sin conexión, ID distinto, etc.).</p>
+<p class="note">Si un día da <b>204</b> o una lista vacía, Weather Underground no tiene datos de tu estación para ese día. Si da <b>401</b>, la clave de la API no es válida.</p>
 
 <h3>Registro</h3><div id="log"></div>
 <script>
@@ -47,10 +50,9 @@ table{width:100%;border-collapse:collapse}td,th{padding:.3rem .4rem;border-botto
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const iso = d => d.toLocaleDateString("sv-SE");
   const y = new Date(); y.setDate(y.getDate() - 1);
-  $("s").value = "2025-01-01"; $("e").value = iso(y); $("td").value = "2025-06-15";
-  let stop = false;
+  $("s").value = "2025-01-01"; $("e").value = iso(y); $("td").value = iso(y);
+  let stop = false, busy = false;
 
-  // Llama a la función y devuelve {ok, status, j}; tolera respuestas no JSON (timeouts 502/504)
   async function call(params) {
     const key = $("k").value.trim();
     if (!key) throw new Error("Escribe la clave de administración");
@@ -60,14 +62,16 @@ table{width:100%;border-collapse:collapse}td,th{padding:.3rem .4rem;border-botto
     return { ok: r.ok && !!j, status: r.status, j, txt };
   }
 
-  $("go").addEventListener("click", async () => {
+  async function run(force) {
+    if (busy) return;
     const start = $("s").value, end = $("e").value;
     if (!start || !end || start > end) { $("st").textContent = "Revisa las fechas."; return; }
-    stop = false; $("go").disabled = true; $("stop").disabled = false;
-    const run = Date.now(); let initial = null, fails = 0;
+    busy = true; stop = false; $("go").disabled = $("fix").disabled = true; $("stop").disabled = false;
+    const runId = Date.now(); let initial = null, fails = 0;
+    if (force) log("🔁 Reintentando todos los días con error del rango…");
     while (!stop) {
       let res;
-      try { res = await call({ start, end, retry: $("r").checked ? "1" : "0", run }); }
+      try { res = await call({ start, end, retry: $("r").checked ? "1" : "0", forceErrors: force ? "1" : "0", run: runId }); }
       catch (e) { log("Error: " + e.message); if (/clave/i.test(e.message)) break; res = null; }
       if (!res || !res.ok) {
         if (res && res.status === 401) { log("❌ " + (res.j && res.j.error)); break; }
@@ -78,20 +82,25 @@ table{width:100%;border-collapse:collapse}td,th{padding:.3rem .4rem;border-botto
       }
       fails = 0;
       const j = res.j;
+      (j.detalle || []).forEach(l => log(l));
+      if (j.fatal) { log("❌ " + j.fatal); $("st").innerHTML = '<span class="err">Carga detenida: clave de Weather Underground rechazada.</span>'; break; }
       if (initial === null) initial = j.remaining + j.done;
       const pct = initial ? Math.round((initial - j.remaining) / initial * 100) : 100;
       $("bar").firstElementChild.style.width = pct + "%";
-      $("st").textContent = `${pct} % · faltan ${j.remaining} días · guardados ${j.withData} días con datos`;
-      (j.detalle || []).forEach(l => log(l));
-      if (j.error) log("⚠️ " + j.error);
-      if (j.remaining <= 0) { log("✅ Rango completo" + (j.fallidos && j.fallidos.length ? " · días que siguen fallando: " + j.fallidos.join(", ") : "")); $("st").textContent = "✅ Terminado: " + j.withData + " días con datos en total."; break; }
+      $("st").textContent = `${pct} % · faltan ${j.remaining} días · ${j.withData} días con datos · ${j.fallidos} con error en el rango`;
+      if (j.remaining <= 0) {
+        log("✅ Rango completo" + (j.fallidos ? ` · quedan ${j.fallidos} días con error: pulsa «Reintentar días con error» más tarde` : ""));
+        break;
+      }
       if (j.limit) { log("Límite de la API alcanzado, espero 70 s…"); await wait(70000); }
-      else await wait(j.error ? 20000 : 15000);   // ~8 días cada 15 s → por debajo de 30 consultas/min
+      else await wait(j.error ? 20000 : 15000);
     }
     if (stop) log("⏸ Parado. Pulsa «Empezar / continuar» para seguir.");
-    $("go").disabled = false; $("stop").disabled = true;
+    busy = false; $("go").disabled = $("fix").disabled = false; $("stop").disabled = true;
     $("sum").click();
-  });
+  }
+  $("go").addEventListener("click", () => run(false));
+  $("fix").addEventListener("click", () => run(true));
   $("stop").addEventListener("click", () => { stop = true; $("stop").disabled = true; });
 
   $("sum").addEventListener("click", async () => {
@@ -99,9 +108,14 @@ table{width:100%;border-collapse:collapse}td,th{padding:.3rem .4rem;border-botto
       const r = await call({ action: "status" });
       if (!r.ok) { $("res").textContent = "Error " + r.status + ": " + (r.j ? r.j.error : r.txt.slice(0, 200)); return; }
       const j = r.j, ys = Object.keys(j.years).sort();
-      $("res").innerHTML = ys.length ? "<table><tr><th>Año</th><th>Con datos</th><th>Sin datos</th><th>Con error</th></tr>" +
-        ys.map(y => `<tr><td>${y}</td><td>${j.years[y].conDatos}</td><td>${j.years[y].vacios}</td><td>${j.years[y].errores || 0}</td></tr>`).join("") +
+      let html = ys.length ? "<table><tr><th>Año</th><th>Con datos</th><th>Sin datos</th><th>Con error</th></tr>" +
+        ys.map(y => `<tr><td>${y}</td><td>${j.years[y].conDatos}</td><td>${j.years[y].vacios}</td><td${j.years[y].errores ? ' class="err"' : ""}>${j.years[y].errores || 0}</td></tr>`).join("") +
         `</table>\nPrimer día con datos: ${j.primerDiaConDatos || "—"} · Último: ${j.ultimoDiaConDatos || "—"}` : "Todavía no hay nada guardado.";
+      if (j.errores && j.errores.total) {
+        html += `\n\n<span class="err">Días con error: ${j.errores.total} (del ${j.errores.primero} al ${j.errores.ultimo})</span>\nMotivos:\n` +
+          Object.entries(j.errores.motivos).map(([m, n]) => `  · ${m}: ${n} días`).join("\n");
+      }
+      $("res").innerHTML = html;
     } catch (e) { $("res").textContent = e.message; }
   });
 
