@@ -177,6 +177,10 @@ button{font-family:inherit}
 .fc .big{font-size:1.1rem!important}
 
 /* Radar */
+.radar{flex:1;border-radius:14px;background:radial-gradient(circle at 55% 45%,rgba(47,128,237,.35),transparent 55%),
+  radial-gradient(circle at 30% 70%,rgba(34,197,94,.25),transparent 45%),var(--card2);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.6rem;text-align:center;padding:1rem}
+.radar .pin{font-size:2.2rem}
 .btnl{display:inline-flex;align-items:center;gap:.4rem;background:var(--acc);color:#fff;text-decoration:none;border-radius:999px;padding:.45rem .95rem;font-size:.88rem;font-weight:600}
 .btnl.sec{background:var(--card);color:var(--txt);border:1px solid var(--line)}
 
@@ -279,21 +283,6 @@ dialog.dlg::backdrop{background:rgba(5,10,20,.55);backdrop-filter:blur(2px)}
   .bnav button .ic{font-size:1.25rem}
   .bnav button[aria-current="page"]{color:var(--acc);font-weight:700}
 }
-/* ===== Radar de lluvia ===== */
-.rdmap{position:relative;flex:1;min-height:170px;border-radius:12px;overflow:hidden;background:#dfe7f1}
-.rdlayer{position:absolute;inset:0}
-.rdlayer img{position:absolute;max-width:none;user-select:none;pointer-events:none}
-#rdRain .fr{position:absolute;inset:0;visibility:hidden}
-#rdRain .fr.on{visibility:visible}
-#rdRain img{opacity:.85}
-.rdpin{position:absolute;left:50%;top:50%;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;background:#ef4444;border:3px solid #fff;box-shadow:0 0 0 2px rgba(239,68,68,.35),0 2px 6px rgba(0,0,0,.3);z-index:2}
-.rdmsg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:1rem;font-size:.88rem;color:#13203a;background:rgba(255,255,255,.65);z-index:3}
-.rdmsg[hidden]{display:none}
-.rdctl{display:flex;align-items:center;gap:.6rem;margin-top:.5rem;font-size:.82rem}
-.rdctl input{flex:1;min-width:0;accent-color:var(--acc)}
-.rdctl button{background:var(--card2);color:var(--txt);border:1px solid var(--line);border-radius:8px;width:2.2rem;height:1.9rem;cursor:pointer}
-.rdattr{font-size:.7rem;color:var(--muted);margin:.35rem 0 0}
-@media (max-width:820px){.rdmap{flex:0 0 260px;height:260px}}
 
 </style>
 </head>
@@ -443,19 +432,13 @@ dialog.dlg::backdrop{background:rgba(5,10,20,.55);backdrop-filter:blur(2px)}
       <div class="kv"><span>Ambiente</span><b id="cf-dew">—</b></div>
     </div>
     <div class="card">
-      <div class="ch"><h3><span class="ic">🗺️</span>Radar de lluvia</h3><span class="sub" id="rdTime">—</span></div>
-      <div class="rdmap" id="rdMap" role="img" aria-label="Radar de precipitación de las últimas 2 horas alrededor de Zizur Mayor">
-        <div class="rdlayer" id="rdBase"></div>
-        <div class="rdlayer" id="rdRain"></div>
-        <div class="rdpin" title="Estación Meteo Ardoi"></div>
-        <div class="rdmsg" id="rdMsg">Cargando radar…</div>
+      <div class="ch"><h3><span class="ic">🗺️</span>Radar de lluvia</h3></div>
+      <div class="radar">
+        <div class="pin">📡</div>
+        <div class="sub">Consulta el radar oficial de AEMET para ver dónde está lloviendo ahora en Navarra.</div>
+        <a class="btnl" href="https://www.aemet.es/es/eltiempo/observacion/radar" target="_blank" rel="noopener">Ver radar AEMET ↗</a>
+        <a class="btnl sec" href="https://www.aemet.es/es/eltiempo/prediccion/avisos" target="_blank" rel="noopener">⚠️ Avisos AEMET ↗</a>
       </div>
-      <div class="rdctl">
-        <button type="button" id="rdPlay" aria-label="Reproducir la animación del radar">▶</button>
-        <input type="range" id="rdSlider" min="0" max="0" value="0" step="1" aria-label="Momento del radar">
-        <a href="https://www.aemet.es/es/eltiempo/observacion/radar" target="_blank" rel="noopener">AEMET ↗</a>
-      </div>
-      <p class="rdattr">Radar: <a href="https://www.rainviewer.com/" target="_blank" rel="noopener">RainViewer</a> · Mapa: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a></p>
     </div>
 
     <!-- Previsión y resumen -->
@@ -1660,102 +1643,10 @@ async function manualRefresh() {
   if (refreshing) return; refreshing = true;
   const b = $("btnRefresh"); b.classList.add("spin"); b.disabled = true;
   try { await Promise.all([refreshLive(), loadForecast()]); renderAstro(); }
-  if (window.radarRefresh) window.radarRefresh();
   finally { b.classList.remove("spin"); b.disabled = false; refreshing = false; }
 }
 $("btnRefresh").addEventListener("click", manualRefresh);
 
-  /* =====================================================================
-   RADAR DE LLUVIA (RainViewer + OpenStreetMap, sin librerías)
-   - Mapa base OSM a zoom 8 y radar a zoom 7 (512 px) → encajan exactamente
-   - Últimas 2 horas cada 10 min, con animación
-   ===================================================================== */
-(function radar() {
-  const LATR = 42.789, LONR = -1.689;   // centro del mapa (Zizur Mayor)
-  const Z = 8, COLOR = 2, OPTS = "1_1";   // RainViewer uso personal: zoom máx. 7, esquema 2
-  const map = document.getElementById("rdMap"); if (!map) return;
-  const base = document.getElementById("rdBase"), rain = document.getElementById("rdRain");
-  const msg = document.getElementById("rdMsg"), slider = document.getElementById("rdSlider");
-  const play = document.getElementById("rdPlay"), lbl = document.getElementById("rdTime");
-  let host = "", frames = [], cur = 0, timer = null, lastW = 0, lastH = 0;
-  const pad2 = n => String(n).padStart(2, "0");
-  const px = (lat, lon, z) => {
-    const w = 256 * Math.pow(2, z), s = Math.sin(lat * Math.PI / 180);
-    return [(lon + 180) / 360 * w, (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * w];
-  };
-  const showMsg = t => { msg.textContent = t; msg.hidden = !t; };
-
-  // Coloca mosaicos de tamaño "size" (px en pantalla) que cubran el contenedor
-  function tiles(layer, size, z, urlFn) {
-    const W = map.clientWidth, H = map.clientHeight;
-    const [cx, cy] = px(LATR, LONR, Z);
-    const left = cx - W / 2, top = cy - H / 2, n = Math.pow(2, z), T = 256 * Math.pow(2, Z - z);
-    const frag = document.createDocumentFragment();
-    for (let ty = Math.floor(top / T); ty <= Math.floor((top + H) / T); ty++) {
-      if (ty < 0 || ty >= n) continue;
-      for (let tx = Math.floor(left / T); tx <= Math.floor((left + W) / T); tx++) {
-        const img = new Image();
-        img.alt = ""; img.decoding = "async"; img.referrerPolicy = "strict-origin-when-cross-origin";
-        img.width = img.height = T; img.style.left = (tx * T - left) + "px"; img.style.top = (ty * T - top) + "px";
-        img.src = urlFn(z, ((tx % n) + n) % n, ty);
-        frag.appendChild(img);
-      }
-    }
-    layer.appendChild(frag);
-  }
-  function build() {
-    const W = map.clientWidth, H = map.clientHeight;
-    if (!W || !H) return;                       // vista oculta: se dibuja al mostrarse
-    lastW = W; lastH = H;
-    base.textContent = "";
-    tiles(base, 256, Z, (z, x, y) => `https://tile.openstreetmap.org/${z}/${x}/${y}.png`);
-    rain.textContent = "";
-    frames.forEach((f, i) => {
-      const d = document.createElement("div"); d.className = "fr" + (i === cur ? " on" : "");
-      tiles(d, 512, 7, (z, x, y) => `${host}${f.path}/512/${z}/${x}/${y}/${COLOR}/${OPTS}.png`);
-      rain.appendChild(d);
-    });
-  }
-  function show(i) {
-    if (!frames.length) return;
-    cur = (i + frames.length) % frames.length;
-    [...rain.children].forEach((d, j) => d.classList.toggle("on", j === cur));
-    slider.value = cur;
-    const t = new Date(frames[cur].time * 1000), ago = Math.round((Date.now() / 1000 - frames[cur].time) / 60);
-    lbl.textContent = `${pad2(t.getHours())}:${pad2(t.getMinutes())} · ${ago <= 10 ? "lo último" : "hace " + ago + " min"}`;
-  }
-  function stop() { clearInterval(timer); timer = null; play.textContent = "▶"; play.setAttribute("aria-label", "Reproducir la animación del radar"); }
-  function start() {
-    if (frames.length < 2) return;
-    play.textContent = "⏸"; play.setAttribute("aria-label", "Pausar la animación del radar");
-    if (cur === frames.length - 1) show(0);
-    timer = setInterval(() => { if (cur >= frames.length - 1) { stop(); return; } show(cur + 1); }, 600);
-  }
-  async function load() {
-    try {
-      const r = await fetch("https://api.rainviewer.com/public/weather-maps.json", { cache: "no-store" });
-      if (!r.ok) throw new Error("HTTP " + r.status);
-      const j = await r.json();
-      const list = ((j.radar && j.radar.past) || []).filter(f => f && f.path && f.time);
-      if (!list.length) throw new Error("sin fotogramas");
-      host = j.host || "https://tilecache.rainviewer.com"; frames = list; cur = frames.length - 1;
-      slider.max = frames.length - 1; slider.disabled = frames.length < 2; play.disabled = frames.length < 2;
-      stop(); build(); show(cur); showMsg("");
-    } catch (e) {
-      console.warn("Radar:", e);
-      if (!frames.length) { showMsg("El radar no está disponible ahora mismo. Puedes consultarlo en AEMET."); build(); }
-    }
-  }
-  play.addEventListener("click", () => timer ? stop() : start());
-  slider.addEventListener("input", () => { stop(); show(+slider.value); });
-  // Redibuja si cambia el tamaño o si la tarjeta estaba oculta (otra sección del menú)
-  if ("ResizeObserver" in window) new ResizeObserver(() => {
-    if (map.clientWidth && (Math.abs(map.clientWidth - lastW) > 4 || Math.abs(map.clientHeight - lastH) > 4)) build();
-  }).observe(map);
-  load();
-  setInterval(load, 10 * 60000);                // nuevos fotogramas cada 10 minutos
-  window.radarRefresh = load;                   // lo usa el botón «Actualizar»
-})();
 init();
 </script>
 
