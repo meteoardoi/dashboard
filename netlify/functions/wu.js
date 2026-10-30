@@ -8,7 +8,7 @@ const ALLOWED = {
   dayall:   "v2/pws/history/all",          // observaciones de 5 min de un día pasado (para las 24 h)
   forecast: "v3/wx/forecast/daily/5day"
 };
-const GEOCODE = "42.789,-1.689"; // centro de Zizur Mayor, no la estación
+const GEOCODE = "42.789,-1.689";
 const json = (code, obj, ttl = 0) => ({
   statusCode: code,
   headers: { "Content-Type": "application/json", "Cache-Control": `public, max-age=${ttl}` },
@@ -19,7 +19,7 @@ exports.handler = async (event) => {
     const q = event.queryStringParameters || {};
     const path = ALLOWED[q.type];
     if (!path) return json(400, { error: "Tipo no permitido", tipo: q.type || null });
-    const key = process.env.WU_API_KEY, st = process.env.WU_STATION_ID;
+    const key = (process.env.WU_API_KEY || "").trim(), st = (process.env.WU_STATION_ID || "").trim();
     if (!key || !st) return json(500, { error: "Faltan variables de entorno", WU_API_KEY: key ? "OK" : "NO", WU_STATION_ID: st ? "OK" : "NO" });
     const p = new URLSearchParams({ format: "json", units: "m", apiKey: key });
     if (q.type === "forecast") { p.set("geocode", GEOCODE); p.set("language", "es-ES"); }
