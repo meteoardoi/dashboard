@@ -2,7 +2,7 @@
    - Hace la web instalable y permite abrirla sin conexión (muestra la última versión guardada).
    - Los datos meteorológicos (/.netlify/functions/) NUNCA se guardan en caché: siempre van en directo.
    - Si cambias index.html, sube también este archivo cambiando la versión para forzar la actualización. */
-const CACHE = "meteoardoi-v3";
+const CACHE = "meteoardoi-v4";
 const SHELL = ["/", "/index.html", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png",
                "/privacidad.html", "/cookies.html", "/aviso-legal.html"];
 self.addEventListener("install", e => {
