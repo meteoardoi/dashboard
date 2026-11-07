@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Meteo Ardoi · Widget</title>
+<style>
+:root{--bg1:#0f2747;--bg2:#2f6aa3;--txt:#fff;--mut:rgba(255,255,255,.78);--box:rgba(255,255,255,.12);--acc:#7cc4ff}
+body.claro{--bg1:#e8f1fc;--bg2:#ffffff;--txt:#13203a;--mut:#5b6b88;--box:#eef3f9;--acc:#2f80ed}
+@media (prefers-color-scheme:light){body.auto{--bg1:#e8f1fc;--bg2:#ffffff;--txt:#13203a;--mut:#5b6b88;--box:#eef3f9;--acc:#2f80ed}}
+*{box-sizing:border-box;margin:0}
+html,body{width:100%;height:100%;overflow:hidden}
+body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--txt)}
+a.w{display:flex;width:100%;height:100%;text-decoration:none;color:inherit;background:linear-gradient(135deg,var(--bg1),var(--bg2));
+  border-radius:12px;overflow:hidden;border:1px solid rgba(127,140,160,.25)}
+a.w:focus-visible{outline:3px solid var(--acc);outline-offset:-3px}
+.brand{font-weight:800;letter-spacing:.06em;font-size:12px;white-space:nowrap}.brand span{color:var(--acc)}
+.place{font-size:11px;color:var(--mut);white-space:nowrap}
+.ico{line-height:1}
+.temp{font-weight:800;line-height:1;white-space:nowrap}
+.cond{font-weight:600;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mm{font-size:12px;white-space:nowrap}.mm .u{color:#fb923c}.mm .d{color:#60a5fa}
+body.claro .mm .u{color:#ea580c}body.claro .mm .d{color:#2563eb}
+.stat{background:var(--box);border-radius:8px;padding:4px 6px;text-align:center;min-width:0}
+.stat .k{font-size:9.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--mut);white-space:nowrap}
+.stat .v{font-weight:700;font-size:13px;white-space:nowrap}
+.foot{font-size:10px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.more{font-size:11px;font-weight:700;color:var(--acc);white-space:nowrap}
+.msg{margin:auto;font-size:12px;color:var(--mut);text-align:center;padding:8px}
+
+/* 300×250 */
+.f300{flex-direction:column;padding:12px 14px;gap:8px}
+.f300 .top{display:flex;justify-content:space-between;align-items:baseline;gap:6px}
+.f300 .main{display:flex;align-items:center;gap:10px;flex:1}
+.f300 .ico{font-size:52px}.f300 .temp{font-size:44px}
+.f300 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.f300 .bot{display:flex;justify-content:space-between;align-items:center;gap:6px}
+/* 728×90 */
+.f728{align-items:center;padding:0 14px;gap:10px}
+.f728>*{flex-shrink:0}
+.f728 .b{display:flex;flex-direction:column}
+.f728 .ico{font-size:40px}.f728 .temp{font-size:34px}
+.f728 .tc{display:flex;flex-direction:column}
+.f728 .tc .cond{max-width:110px}
+.f728 .mm{display:flex;flex-direction:column;gap:2px}
+.f728 .stats{display:flex;gap:6px;flex:1 1 auto;min-width:0;justify-content:center}
+.f728 .stat{min-width:68px}
+.f728 .end{display:flex;flex-direction:column;align-items:flex-end;gap:3px}
+/* 320×100 */
+.f320{align-items:center;padding:8px 12px;gap:10px}
+.f320 .ico{font-size:40px}.f320 .temp{font-size:32px}
+.f320 .l{display:flex;flex-direction:column;min-width:0}
+.f320 .r{margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:2px;font-size:12px;white-space:nowrap}
+</style>
+</head>
+<body class="auto">
+<a class="w" id="w" href="https://meteoardoi.es/?utm_source=widget" target="_blank" rel="noopener" aria-label="El tiempo en Zizur Mayor · Meteo Ardoi">
+  <div class="msg">Cargando el tiempo…</div>
+</a>
+<script>
+(function () {
+  const q = new URLSearchParams(location.search);
+  const F = { "300x250": "f300", "728x90": "f728", "320x100": "f320" }[q.get("formato")] || "f300";
+  const tema = q.get("tema"); document.body.className = tema === "claro" ? "claro" : tema === "oscuro" ? "oscuro" : "auto";
+  const W = document.getElementById("w"); W.classList.add(F);
+  const isNum = v => v !== null && v !== undefined && !isNaN(v);
+  const f1 = v => isNum(v) ? (+v).toLocaleString("es-ES", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : "—";
+  const f0 = v => isNum(v) ? Math.round(v).toLocaleString("es-ES") : "—";
+  const pad = n => String(n).padStart(2, "0");
+  const DIRS = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSO","SO","OSO","O","ONO","NO","NNO"];
+  const dir = d => isNum(d) ? DIRS[Math.round(d / 22.5) % 16] : "";
+  // Altura del Sol (aprox.) para distinguir noche / amanecer
+  function sunAlt(date, lat, lon) {
+    const R = Math.PI / 180, d = date / 864e5 - 10957.5, M = R * (357.5291 + 0.98560028 * d);
+    const L = M + R * (1.9148 * Math.sin(M) + 0.02 * Math.sin(2 * M)) + R * 102.9372 + Math.PI, e = R * 23.4397;
+    const dec = Math.asin(Math.sin(e) * Math.sin(L)), ra = Math.atan2(Math.sin(L) * Math.cos(e), Math.cos(L));
+    const H = R * (280.16 + 360.9856235 * d) + R * lon - ra;
+    return Math.asin(Math.sin(R * lat) * Math.sin(dec) + Math.cos(R * lat) * Math.cos(dec) * Math.cos(H)) / R;
+  }
+  function sky(x) {
+    if (isNum(x.rrate) && x.rrate > 0) return ["🌧️", "Lloviendo"];
+    const alt = isNum(x.lat) ? sunAlt(Date.now(), x.lat, x.lon) : 30;
+    if (alt < -6) return ["🌙", "Noche"];
+    if (alt < 4) return [new Date().getHours() < 13 ? "🌅" : "🌇", new Date().getHours() < 13 ? "Amaneciendo" : "Atardeciendo"];
+    if (!isNum(x.sol)) return ["🌤️", "De día"];
+    const s = Math.sin(alt * Math.PI / 180), k = x.sol / (1098 * s * Math.exp(-0.057 / s));
+    return k >= .75 ? ["☀️", "Despejado"] : k >= .5 ? ["🌤️", "Poco nuboso"] : k >= .3 ? ["⛅", "Nuboso"] : ["☁️", "Cubierto"];
+  }
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  function render(x) {
+    const [ic, tx] = sky(x), t = new Date(x.epoch * 1000), old = Date.now() - t > 45 * 60000;
+    const hora = `${pad(t.getHours())}:${pad(t.getMinutes())}`;
+    const st = (k, v) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`;
+    const stats = st("💧 Humedad", f0(x.hum) + " %") + st("💨 Viento", f0(x.wind) + " km/h") + st("🌧️ Lluvia", f1(x.rain) + " mm");
+    const mm = `<span class="mm"><span class="u">▲ ${f1(x.tmax)}°</span> <span class="d">▼ ${f1(x.tmin)}°</span></span>`;
+    const upd = old ? "Datos de las " + hora : "Actualizado " + hora;
+    W.setAttribute("aria-label", `El tiempo en Zizur Mayor: ${f1(x.temp)} grados, ${tx}. Máxima ${f1(x.tmax)}, mínima ${f1(x.tmin)}. Abrir Meteo Ardoi.`);
+    if (F === "f300") W.innerHTML =
+      `<div class="top"><div class="brand">METEO <span>ARDOI</span></div><div class="place">Zizur Mayor · Navarra</div></div>
+       <div class="main"><div class="ico" aria-hidden="true">${ic}</div><div><div class="temp">${f1(x.temp)}°</div><div class="cond">${esc(tx)}</div>${mm}</div></div>
+       <div class="stats">${stats}</div>
+       <div class="bot"><div class="foot">${upd} · Estación Meteo Ardoi</div><div class="more">Ver más →</div></div>`;
+    else if (F === "f728") W.innerHTML =
+      `<div class="b"><div class="brand">METEO <span>ARDOI</span></div><div class="place">Zizur Mayor · Navarra</div></div>
+       <div class="ico" aria-hidden="true">${ic}</div>
+       <div class="tc"><div class="temp">${f1(x.temp)}°</div><div class="cond">${esc(tx)}</div></div>
+       ${mm}
+       <div class="stats">${stats}</div>
+       <div class="end"><div class="more">meteoardoi.es →</div><div class="foot">${upd}</div></div>`;
+    else W.innerHTML =
+      `<div class="ico" aria-hidden="true">${ic}</div>
+       <div class="l"><div class="brand">METEO <span>ARDOI</span></div><div class="temp">${f1(x.temp)}°</div><div class="place">Zizur Mayor · ${hora}</div></div>
+       <div class="r">${mm}<div>💧 ${f0(x.hum)} % · 💨 ${f0(x.wind)} km/h</div><div class="more">Ver más →</div></div>`;
+  }
+  let last = null;
+  async function load() {
+    try {
+      const r = await fetch("/.netlify/functions/widget-datos");
+      const j = await r.json();
+      if (!r.ok || j.error || !isNum(j.temp)) throw new Error(j.error || "sin datos");
+      last = j; render(j);
+    } catch (e) {
+      if (!last) W.innerHTML = '<div class="msg"><b>Meteo Ardoi</b><br>Datos no disponibles ahora mismo.<br>meteoardoi.es →</div>';
+    }
+  }
+  load(); setInterval(load, 5 * 60000);
+})();
+</script>
+</body>
+</html>
