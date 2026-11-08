@@ -312,6 +312,7 @@ dialog.dlg::backdrop{background:rgba(5,10,20,.55);backdrop-filter:blur(2px)}
       <div class="chartbox"><canvas id="ch-t24" role="img" aria-label="Temperatura y punto de rocío de las últimas 24 horas"></canvas></div>
       <div class="stats"><div><span>Ahora</span> <b id="t-now">—</b></div><div><span>Máx. hoy</span> <b class="up" id="t-max">—</b></div><div><span>Mín. hoy</span> <b class="down" id="t-min">—</b></div><div><span>Media hoy</span> <b id="t-avg">—</b></div></div>
     </div>
+
     <div class="card" id="humedad">
       <div class="ch"><h3><span class="ic">💧</span>Humedad</h3><button type="button" class="dl" data-csv="hum" title="Descargar datos de humedad">⬇ CSV</button></div>
       <div class="hum-top">
@@ -324,7 +325,14 @@ dialog.dlg::backdrop{background:rgba(5,10,20,.55);backdrop-filter:blur(2px)}
       </div>
       <div class="chartbox" style="min-height:110px"><canvas id="ch-h24" role="img" aria-label="Humedad de las últimas 24 horas"></canvas></div>
     </div>
+</div><!-- cierra la cuadrícula de Temperatura y Humedad -->
 
+    <div class="ad" id="ad3">
+      <!-- AdSense: sustituye este bloque por tu <ins class="adsbygoogle" ...> -->
+      <strong>Patrocina Meteo Ardoi</strong>Anuncia tu negocio aquí · <a href="mailto:contacto@meteoardoi.es">Contacto</a>
+    </div>
+
+    <div class="grid3"><!-- vuelve a abrir la cuadrícula para el resto de tarjetas -->
     <div class="card s2">
       <div class="ch"><h3><span class="ic">💨</span>Viento medio y rachas · últimas 24 h</h3><button type="button" class="dl" data-csv="wind" title="Descargar datos de viento">⬇ CSV</button></div>
       <div class="chartbox"><canvas id="ch-w24" role="img" aria-label="Viento medio y rachas de las últimas 24 horas"></canvas></div>
@@ -402,7 +410,7 @@ dialog.dlg::backdrop{background:rgba(5,10,20,.55);backdrop-filter:blur(2px)}
 
   <div class="ad" id="ad1">
     <!-- AdSense: sustituye este bloque por tu <ins class="adsbygoogle" ...> -->
-    <strong>Patrocina Meteo Ardoi</strong>Tu negocio aquí · <a href="mailto:contacto@meteoardoi.es">Contacto</a>
+    <strong>Patrocina Meteo Ardoi</strong>Anuncia tu negocio aquí · <a href="mailto:contacto@meteoardoi.es">Contacto</a>
   </div>
 </section>
 
